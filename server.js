@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const db = require('./models');
 const { connectRedis } = require('./config/redis');
+const { initializeSSE, cleanup: cleanupSSE } = require('./services/sseService');
 const logger = require('./utils/logger');
 
 const PORT = process.env.PORT || 5000;
@@ -20,6 +21,10 @@ const startServer = async () => {
         // Connect to Redis
         await connectRedis();
 
+        // Initialize SSE service
+        initializeSSE();
+        logger.info('✓ SSE service initialized');
+
         // Start server
         app.listen(PORT, () => {
             logger.info(`✓ Server is running on port ${PORT}`);
@@ -35,6 +40,14 @@ const startServer = async () => {
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
     logger.info('Shutting down gracefully...');
+    await cleanupSSE();
+    await db.sequelize.close();
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    logger.info('Received SIGTERM, shutting down gracefully...');
+    await cleanupSSE();
     await db.sequelize.close();
     process.exit(0);
 });

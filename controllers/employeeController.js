@@ -2,6 +2,7 @@ const { validationResult } = require('express-validator');
 const { Employee } = require('../models');
 const { success, created, error, notFound, validationError } = require('../utils/responseHelper');
 const { validate: isUUID } = require('uuid');
+const { addEmployeeCreationJob } = require('../services/employeeQueue');
 
 const employeeController = {
     getAllEmployees: async (req, res) => {
@@ -63,10 +64,14 @@ const employeeController = {
                 return validationError(res, errors.array());
             }
 
-            const employee = await Employee.create(req.body);
-            const createdEmployee = await Employee.findByPk(employee.id);
+            // Queue employee creation for background processing
+            const jobId = await addEmployeeCreationJob(req.body, req.user.id);
 
-            return created(res, { employee: createdEmployee }, 'Employee created successfully');
+            return success(res, {
+                jobId,
+                message: 'Employee creation queued for background processing',
+                status: 'processing'
+            }, 202, 'Employee creation request accepted');
         } catch (err) {
             console.error('Create employee error:', err);
             return error(res);
